@@ -1,0 +1,7 @@
+zlib, level 9: 170 bytes, whole, a byte at a time, and 5 a call: ok
+a fixed block: 19 bytes, whole, a byte at a time, and 5 a call: ok
+a stored block: 15 bytes, whole, a byte at a time, and 5 a call: ok
+a dynamic block: 6800 bytes, whole, a byte at a time, and 5 a call: ok
+gzip with every header field: 11 bytes, whole, a byte at a time, and 5 a call: ok
+two gzip members: 27 bytes, whole, a byte at a time, and 5 a call: ok
+decompress, one call: ok

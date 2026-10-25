@@ -25,7 +25,7 @@ and each block's literals and sequences are coded with tables chosen for it.
 | 🟢 | Raw DEFLATE | The same stream with no wrapper. |
 | 🟢 | zstd | Levels 1 and 3, libzstd's fast and double-fast matchers, with Huffman literals and FSE tables chosen per block; levels 2 to 22 run level 3. See [benchmarks](#benchmarks) for measured rates and output sizes. |
 | 🔴 | Brotli | Out of scope: HTTP servers serve it precompressed (task 002). |
-| 🔴 | Decoding | Out of scope for now. |
+| 🟢 | Decoding gzip, zlib, and raw DEFLATE | In Goose, fed in pieces, with a limit on each call's output; about 40% of zlib's speed on the probe below. zstd and Brotli streams aren't decoded. |
 
 | | Feature |
 |---|---|
@@ -126,6 +126,30 @@ All in namespace `compress`. Output is appended to a `u8[>..]` the caller owns.
   they're cleared after 2 GB of streams, counting 128 KB more for each
   ([decisions](docs/decisions.md)). When the one-shot `compress` level is
   omitted, its default of 6 selects zstd's level-3 matcher.
+- **`compress::decoder(format = GZIP)`**: a gzip, zlib, or raw DEFLATE stream being
+  decompressed, `compress::Decoder`, a fixed-size value of about 37 KB: the 32 KB
+  window, and the two codes' tables. `compress::reset(d, format)` starts it over in
+  place. Shown in `test/inflate/`.
+  - `compress::decode(d, input, out, most = -1)`: decodes what `input` holds and
+    appends what it makes to `out`, up to `most` bytes this call (-1: no limit), so a
+    caller bounds what a stream from outside makes it hold. It returns how many bytes
+    of `input` it used and `DECODE_MORE`, all of them used and the stream going on;
+    `DECODE_FULL`, the limit reached, `input[used..]` for the next call;
+    `DECODE_DONE`, the stream ended at `input[used]`; or `DECODE_ERROR`, with the
+    reason in `d.error`. The input may be split anywhere, and the output is the same.
+  - It refuses a block of the reserved type, a stored length whose complement is
+    wrong, a code that's over-subscribed or, but for a single code, incomplete, a
+    distance before the stream's start, a zlib stream that needs a preset dictionary,
+    and a CRC-32, Adler-32, or gzip length that doesn't match. A gzip header's file
+    name and comment may take 4,096 bytes each, and its header CRC is checked.
+  - A gzip stream may hold several members, each checked; other bytes after one are
+    `DECODE_ERROR`. After a zlib or raw stream, they're the caller's.
+  - On a 2.5 MB word list, a build at `-O2` on an Apple M-series laptop decoded
+    `gzip -9`'s stream and Python zlib's at levels 1, 6, and 9 to the same bytes at
+    210 to 250 MB/s, CRC-32 or Adler-32 included, where Python's zlib took 570 MB/s
+    (2026-10-25).
+- **`compress::decompress(data, out, format = GZIP, most = -1)`**: decodes `data`
+  whole: true once its stream ended with nothing after it, in at most `most` bytes.
 - **`compress::crc32(crc, data)`** and **`compress::adler32(adler, data)`**: the
   checksums, continuing from a previous value. Start CRC-32 at 0 and Adler-32 at 1.
   **`compress::xxh64(data)`** is XXH64 with seed 0; `compress::Xxh64 { .. }`,
@@ -196,6 +220,7 @@ competitors, and libzstd and klauspost/compress its zstd ones.
 ```text
 compress.goose       the package's entry: formats, the one-shot and streaming encoders
 deflate.goose        the DEFLATE stream at levels 1 and up: LZ77, the bit writer, blocks
+inflate.goose        decoding gzip, zlib, and raw DEFLATE, in pieces
 huffman.goose        length-limited Huffman codes, for dynamic blocks and zstd's literals
 zstd.goose           the zstd frame, level 1 and 3 matching, and compressed blocks
 zstd_literals.goose  a zstd block's literals: Huffman coded, RLE, or raw

@@ -1,0 +1,6 @@
+none: every format and level, whole, in 7-byte pieces, and 1,000 bytes a call: ok
+300 KB random: every format and level, whole, in 7-byte pieces, and 1,000 bytes a call: ok
+200 KB text: every format and level, whole, in 7-byte pieces, and 1,000 bytes a call: ok
+100 KB zeros: every format and level, whole, in 7-byte pieces, and 1,000 bytes a call: ok
+32 KB twice: every format and level, whole, in 7-byte pieces, and 1,000 bytes a call: ok
+3,000 bytes of text, a byte in and a byte out each call: ok

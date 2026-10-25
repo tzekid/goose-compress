@@ -6,6 +6,7 @@ namespace compress;
 import std;
 import .checksum;
 import .deflate;
+import .inflate;
 import .zstd;
 
 // The container around the DEFLATE stream: gzip (RFC 1952), zlib (RFC 1950), or

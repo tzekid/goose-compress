@@ -1,0 +1,15 @@
+reserved: a block of the reserved type: ok
+stored: a stored block's length and its complement differ: ok
+far: a distance back past the stream's start: ok
+far by one: a distance back past the stream's start: ok
+over-subscribed: a code length code that's over-subscribed: ok
+repeat first: a repeat with no length before it: ok
+length 286: a length code past 285: ok
+Adler-32: a zlib Adler-32 that doesn't match: ok
+dictionary: a zlib stream that needs a preset dictionary: ok
+CRC: a gzip CRC that doesn't match: ok
+length: a gzip length that doesn't match: ok
+every prefix of a zlib stream wants more: ok
+after a zlib stream: done, used 88 of 91: ok
+after a gzip member: done at 34, then bytes after the stream: ok
+a limit of 10: 10 bytes, full: ok
