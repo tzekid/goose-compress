@@ -10,7 +10,7 @@ import .checksum;
 
 // What decode returns beside the bytes of input it used.
 let DECODE_MORE = 0;    // every byte was used, and the stream goes on
-let DECODE_FULL = 1;    // the call's output limit was reached: input[used..] goes to the next call
+let DECODE_FULL = 1;    // the call's output limit was reached: call again with input[used..], even an empty one
 let DECODE_DONE = 2;    // the stream has ended, at input[used]
 let DECODE_ERROR = -1;  // the stream is corrupt, or one the decoder refuses: Decoder.error says why
 
@@ -66,8 +66,10 @@ struct Decoder {
     // Input taken but not used yet, its first bit the low one.
     bits: u64 = 0,
     nbits: i64 = 0,
-    // The block being read is the stream's last.
+    // The block being read is the stream's last; and lit and dist hold the
+    // fixed codes, which a run of fixed blocks then needn't build again.
     last: bool = false,
+    fixed: bool = false,
     stored_left: i64 = 0,
     lit: Code = Code { .. },
     dist: Code = Code { .. },
@@ -120,6 +122,7 @@ fn start_member(d: Decoder&) {
     d.total = 0;
     d.check = if d.format == ZLIB { 1 } else { 0 };
     d.header_at = 0;
+    d.field_left = 0;
     d.header_crc = 0;
 }
 
@@ -161,6 +164,17 @@ fn decode(d: Decoder&, input: const u8[:], out: u8[>..]&, most: i64 = -1) -> i64
         if status == DECODE_DONE && d.format == GZIP && at < input.len && input[at] == 0x1f {
             start_member(d);
             continue;
+        }
+        if status == DECODE_FULL {
+            // The whole bytes taken this call and not used yet go back to
+            // input, so that used ends where the stream does: what follows
+            // a zlib or raw stream stays the caller's.
+            let back = min(d.nbits / 8, at);
+            if back > 0 {
+                at -= back;
+                d.nbits -= 8 * back;
+                d.bits &= ((1 as u64) << (d.nbits as u64)) - 1;
+            }
         }
         if status != DECODE_MORE || !progressed { return at, status; }
     }
@@ -248,6 +262,7 @@ fn step(d: Decoder&, input: const u8[:], at: i64&, out: u8[>..]&, room: i64) -> 
             d.have++;
             progressed = true;
         }
+        d.fixed = false;
         let left = build(d.lit, d.lens[..19]);
         guard left >= 0 else { return true, fail(d, "a code length code that's over-subscribed"); }
         guard left == 0 else { return true, fail(d, "a code length code that isn't complete"); }
@@ -460,6 +475,8 @@ fn peek(d: const Decoder&, c: const Code&) -> i64, i64 {
 }
 
 fn fixed_codes(d: Decoder&) {
+    guard !d.fixed else { return; }
+    d.fixed = true;
     var lengths: u8[288] = [0; 288];
     for i in 288 { lengths[i] = if i < 144 { 8 } else if i < 256 { 9 } else if i < 280 { 7 } else { 8 }; }
     build(d.lit, lengths);
@@ -524,10 +541,12 @@ fn codes_step(d: Decoder&, out: u8[>..]&, room: i64) -> bool, i64 {
     loop {
         let made = out.len - begin;
         if d.state == D_CODES {
-            guard room < 0 || made < room else { return moved, DECODE_FULL; }
+            // The block's end makes nothing, so it's taken with no room left,
+            // and a stream that fills the room exactly ends in this call.
             let sym, len = peek(d, d.lit);
             guard len >= 0 else { return true, fail(d, "a literal/length that isn't one of the code's"); }
             guard len > 0 else { return moved, DECODE_MORE; }
+            guard sym == 256 || room < 0 || made < room else { return moved, DECODE_FULL; }
             if sym < 256 {
                 take_bits(d, len);
                 emit(d, out, sym as! u8);

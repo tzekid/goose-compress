@@ -134,7 +134,8 @@ All in namespace `compress`. Output is appended to a `u8[>..]` the caller owns.
     appends what it makes to `out`, up to `most` bytes this call (-1: no limit), so a
     caller bounds what a stream from outside makes it hold. It returns how many bytes
     of `input` it used and `DECODE_MORE`, all of them used and the stream going on;
-    `DECODE_FULL`, the limit reached, `input[used..]` for the next call;
+    `DECODE_FULL`, the limit reached, `input[used..]` for the next call, which the
+    caller makes even when that's empty, since the decoder may hold more output;
     `DECODE_DONE`, the stream ended at `input[used]`; or `DECODE_ERROR`, with the
     reason in `d.error`. The input may be split anywhere, and the output is the same.
   - It refuses a block of the reserved type, a stored length whose complement is
