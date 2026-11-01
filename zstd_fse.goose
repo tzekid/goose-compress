@@ -130,7 +130,8 @@ let FSE_COST = fse_cost_tab();
 
 fn fse_cost_tab() -> i64[FSE_STATES + 1] {
     var t: i64[FSE_STATES + 1] = [0; FSE_STATES + 1];
-    for x in 1..FSE_STATES + 1 { t[x] = (::log2(x as f64) * 256.0 + 0.5) as i64; }
+    // as! truncates, which rounds the sum; a debug build's as would refuse it.
+    for x in 1..FSE_STATES + 1 { t[x] = (::log2(x as f64) * 256.0 + 0.5) as! i64; }
     return t;
 }
 
